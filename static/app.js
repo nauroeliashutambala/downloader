@@ -93,7 +93,7 @@ function renderSearchResults(items) {
       <div class="search-thumb">${thumb}</div>
       <div class="search-meta">
         <h4>${escapeHtml(item.title || "Sem titulo")}</h4>
-        <p>${escapeHtml(item.channel || "Canal desconhecido")} • ${escapeHtml(duration)}</p>
+        <p>${escapeHtml(item.channel || "Canal desconhecido")} - ${escapeHtml(duration)}</p>
         <div class="search-actions">
           <a href="${escapeHtml(item.webpage_url)}" target="_blank" rel="noopener">Abrir no YouTube</a>
           <button type="button" class="use-result-btn" data-url="${escapeHtml(item.webpage_url)}">Usar este link</button>
@@ -162,6 +162,15 @@ function renderExampleCode() {
   exampleCodeEl.textContent = getExampleCode();
 }
 
+async function readApiResponse(response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+  const text = await response.text();
+  return { detail: text || "Resposta invalida da API." };
+}
+
 function activateTab(tabName) {
   tabButtons.forEach((btn) => {
     const active = btn.dataset.tabTarget === tabName;
@@ -198,7 +207,7 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify({ url, quality }),
     });
 
-    const data = await response.json();
+    const data = await readApiResponse(response);
     if (!response.ok) {
       throw new Error(data.detail || "Falha no download.");
     }
@@ -232,7 +241,7 @@ if (searchForm && searchQueryInput && searchBtn && searchStatusEl && searchResul
     searchResultsEl.innerHTML = "";
     try {
       const response = await fetch(`/search/youtube?q=${encodeURIComponent(q)}&limit=10`);
-      const data = await response.json();
+      const data = await readApiResponse(response);
       if (!response.ok) {
         throw new Error(data.detail || "Falha na pesquisa.");
       }
@@ -284,3 +293,4 @@ if (tabButtons.length) {
   });
   activateTab("url");
 }
+

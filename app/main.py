@@ -16,7 +16,6 @@ DOWNLOAD_DIR = Path(os.getenv("DOWNLOAD_DIR", str(BASE_DIR / "downloads")))
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 RUNTIME_DIR = BASE_DIR / ".runtime"
-BRAND_SUFFIX = os.getenv("BRAND_SUFFIX", "lubashow.com")
 APP_NAME_SUFFIX = "Nauro-Vidown"
 VIDEO_QUALITIES = {"best", "1080", "720", "480", "360"}
 AUDIO_QUALITIES = {"320", "192", "128"}
@@ -83,10 +82,13 @@ def _resolve_cookies_file() -> str | None:
 
     cookies_b64 = os.getenv("YTDLP_COOKIES_B64")
     if cookies_b64:
-        target = RUNTIME_DIR / "youtube_cookies.txt"
-        decoded = base64.b64decode(cookies_b64).decode("utf-8", errors="ignore")
-        target.write_text(decoded, encoding="utf-8")
-        return str(target)
+        try:
+            target = RUNTIME_DIR / "youtube_cookies.txt"
+            decoded = base64.b64decode(cookies_b64).decode("utf-8", errors="ignore")
+            target.write_text(decoded, encoding="utf-8")
+            return str(target)
+        except Exception:
+            return None
 
     return None
 
@@ -115,20 +117,31 @@ def _check_admin_token(admin_token: str | None) -> bool:
     return True
 
 
-def _find_output_file(ydl: yt_dlp.YoutubeDL, info: dict[str, Any]) -> Path:
-    prepared = Path(ydl.prepare_filename(info))
-    if prepared.exists():
-        return prepared
-
+def _find_output_file(info: dict[str, Any]) -> Path:
     possible_path = info.get("_filename")
     if possible_path:
-        file_from_info = Path(possible_path)
-        if file_from_info.exists():
-            return file_from_info
+        candidate = Path(str(possible_path))
+        if candidate.exists():
+            return candidate
 
-    video_id = info.get("id", "")
+    requested = info.get("requested_downloads")
+    if isinstance(requested, list):
+        for item in requested:
+            if not isinstance(item, dict):
+                continue
+            filepath = item.get("filepath")
+            if filepath:
+                candidate = Path(str(filepath))
+                if candidate.exists():
+                    return candidate
+
+    video_id = str(info.get("id") or "")
     if video_id:
-        matches = list(DOWNLOAD_DIR.glob(f"*-{video_id}*"))
+        matches = sorted(
+            DOWNLOAD_DIR.glob(f"*-{video_id}*"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
         if matches:
             return matches[0]
 
@@ -153,9 +166,21 @@ def _build_branded_filename(info: dict[str, Any], ext: str) -> str:
     raw_title = str(info.get("title") or "video")
     title = _sanitize_title(raw_title)
     app_name = _sanitize_title(APP_NAME_SUFFIX)
-    brand = _sanitize_title(BRAND_SUFFIX)
     separator = " | " if os.name != "nt" else " - "
-    return f"{title}{separator}{app_name} - {brand}.{ext}"
+    return f"{title}{separator}{app_name}.{ext}"
+
+
+def _unique_destination(path: Path) -> Path:
+    if not path.exists():
+        return path
+    stem = path.stem
+    suffix = path.suffix
+    parent = path.parent
+    for idx in range(1, 1000):
+        candidate = parent / f"{stem} ({idx}){suffix}"
+        if not candidate.exists():
+            return candidate
+    return parent / f"{stem}-{os.getpid()}{suffix}"
 
 
 def download_media(url: str, audio_only: bool = False, quality: str | None = None) -> dict[str, Any]:
@@ -178,26 +203,46 @@ def download_media(url: str, audio_only: bool = False, quality: str | None = Non
         options["merge_output_format"] = "mp4"
 
     try:
-        with yt_dlp.YoutubeDL(options) as ydl:
-            info = ydl.extract_info(url, download=True)
-            final_path = _find_output_file(ydl, info)
-            final_ext = final_path.suffix.lstrip(".") or str(info.get("ext") or "mp4")
-            branded_name = _build_branded_filename(info, final_ext)
-            branded_path = DOWNLOAD_DIR / branded_name
-            if final_path.resolve() != branded_path.resolve():
-                final_path = final_path.replace(branded_path)
+        try:
+            with yt_dlp.YoutubeDL(options) as ydl:
+                info = ydl.extract_info(url, download=True)
+        except Exception as first_exc:
+            # Some videos do not expose the requested format; retry with safer defaults.
+            first_err = str(first_exc).lower()
+            if "requested format is not available" in first_err or "--list-formats" in first_err:
+                fallback = _build_ydl_base_options()
+                fallback["outtmpl"] = options["outtmpl"]
+                if audio_only:
+                    fallback["format"] = "bestaudio/best"
+                    fallback["postprocessors"] = options.get("postprocessors", [])
+                    selected_quality = "192"
+                else:
+                    fallback["format"] = "bestvideo*+bestaudio/best"
+                    fallback["merge_output_format"] = "mp4"
+                    selected_quality = "best"
+                with yt_dlp.YoutubeDL(fallback) as ydl:
+                    info = ydl.extract_info(url, download=True)
+            else:
+                raise
 
-            return {
-                "status": "success",
-                "media_type": "audio" if audio_only else "video",
-                "quality": selected_quality,
-                "url": url,
-                "title": info.get("title"),
-                "filename": final_path.name,
-                "filepath": str(final_path),
-                "extractor": info.get("extractor"),
-                "duration": info.get("duration"),
-            }
+        final_path = _find_output_file(info)
+        final_ext = final_path.suffix.lstrip(".") or str(info.get("ext") or "mp4")
+        branded_name = _build_branded_filename(info, final_ext)
+        branded_path = _unique_destination(DOWNLOAD_DIR / branded_name)
+        if final_path.resolve() != branded_path.resolve():
+            final_path = final_path.replace(branded_path)
+
+        return {
+            "status": "success",
+            "media_type": "audio" if audio_only else "video",
+            "quality": selected_quality,
+            "url": url,
+            "title": info.get("title"),
+            "filename": final_path.name,
+            "filepath": str(final_path),
+            "extractor": info.get("extractor"),
+            "duration": info.get("duration"),
+        }
     except Exception as exc:
         err = str(exc)
         if "not a bot" in err.lower():

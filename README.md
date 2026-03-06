@@ -97,7 +97,7 @@ curl -X POST "http://127.0.0.1:8000/admin/cookies/test" \
 
 - "Qualquer tipo de video" depende dos sites suportados pelo `yt-dlp`.
 - Use apenas em conteudo que voce tem permissao para baixar.
-- Os ficheiros sao assinados automaticamente com `-lubashow.com` no final do nome.
+- Os ficheiros sao assinados automaticamente com `Nauro-Vidown` no final do nome.
 - Em Railway, o filesystem do container e efemero: arquivos podem sumir em restart/redeploy.
 
 ## Deploy Railway
@@ -119,4 +119,5 @@ Na Railway, normalmente e mais facil usar `YTDLP_COOKIES_B64` em Variables.
 Para proteger o endpoint admin, defina:
 
 - `ADMIN_TOKEN`: token esperado no header `X-Admin-Token`
+
 
