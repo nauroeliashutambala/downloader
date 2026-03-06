@@ -23,6 +23,7 @@ const exampleCodeEl = document.getElementById("example-code");
 const copyExampleBtn = document.getElementById("copy-example-btn");
 const copyStatusEl = document.getElementById("copy-status");
 const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
+const tabTriggers = Array.from(document.querySelectorAll("[data-tab-target]"));
 const tabPanels = {
   url: document.getElementById("tab-url"),
   search: document.getElementById("tab-search"),
@@ -278,7 +279,7 @@ if (copyExampleBtn && exampleCodeEl && copyStatusEl) {
 }
 
 if (tabButtons.length) {
-  tabButtons.forEach((btn) => {
+  tabTriggers.forEach((btn) => {
     btn.addEventListener("click", () => activateTab(btn.dataset.tabTarget || "url"));
   });
   activateTab("url");

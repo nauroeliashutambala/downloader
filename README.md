@@ -34,6 +34,7 @@ set DOWNLOAD_DIR=C:\caminho\downloads
 - `POST /download/video`
 - `POST /download/audio` (musica/audio do video)
 - `GET /files/{filename}`
+- `POST /admin/cookies/test` (admin)
 
 Payload aceito:
 
@@ -85,11 +86,18 @@ Depois, baixe o arquivo salvo:
 curl -O "http://127.0.0.1:8000/files/NOME_DO_ARQUIVO"
 ```
 
+Teste de cookies (admin):
+
+```bash
+curl -X POST "http://127.0.0.1:8000/admin/cookies/test" \
+  -H "X-Admin-Token: SEU_TOKEN"
+```
+
 ## Observacoes
 
 - "Qualquer tipo de video" depende dos sites suportados pelo `yt-dlp`.
 - Use apenas em conteudo que voce tem permissao para baixar.
-- Os ficheiros sao assinados automaticamente com `-| https://nauro-vidown.up.railway.app` no final do nome.
+- Os ficheiros sao assinados automaticamente com `-lubashow.com` no final do nome.
 - Em Railway, o filesystem do container e efemero: arquivos podem sumir em restart/redeploy.
 
 ## Deploy Railway
@@ -98,4 +106,17 @@ curl -O "http://127.0.0.1:8000/files/NOME_DO_ARQUIVO"
 - O `nixpacks.toml` instala `ffmpeg`.
 - A Railway injeta `PORT` automaticamente; o start command ja usa essa variavel.
 - Se quiser persistencia real dos arquivos, use storage externo (S3, R2 etc.) e salve la em vez de disco local.
+
+### YouTube "Sign in to confirm you're not a bot"
+
+Quando acontecer esse bloqueio, configure cookies do YouTube:
+
+- `YTDLP_COOKIES_FILE`: caminho de um arquivo cookies.txt (formato Netscape)
+- ou `YTDLP_COOKIES_B64`: conteudo do cookies.txt em base64
+
+Na Railway, normalmente e mais facil usar `YTDLP_COOKIES_B64` em Variables.
+
+Para proteger o endpoint admin, defina:
+
+- `ADMIN_TOKEN`: token esperado no header `X-Admin-Token`
 

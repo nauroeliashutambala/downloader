@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Any
 import os
+import base64
 
-from fastapi import FastAPI, HTTPException
-from fastapi import Query, Request
+from fastapi import FastAPI, HTTPException, Header, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -15,11 +15,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DOWNLOAD_DIR = Path(os.getenv("DOWNLOAD_DIR", str(BASE_DIR / "downloads")))
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
-BRAND_SUFFIX = "| https://nauro-vidown.up.railway.app"
+RUNTIME_DIR = BASE_DIR / ".runtime"
+BRAND_SUFFIX = os.getenv("BRAND_SUFFIX", "lubashow.com")
 APP_NAME_SUFFIX = "Nauro-Vidown"
 VIDEO_QUALITIES = {"best", "1080", "720", "480", "360"}
 AUDIO_QUALITIES = {"320", "192", "128"}
+
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Video Downloader API", version="1.0.0")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -58,6 +61,60 @@ class YoutubeSearchResponse(BaseModel):
     items: list[YoutubeSearchItem]
 
 
+class CookiesTestResponse(BaseModel):
+    status: str
+    auth_protected: bool
+    cookies_configured: bool
+    cookiefile: str | None
+    cookiefile_exists: bool
+    can_extract: bool
+    test_url: str
+    extractor: str | None
+    title: str | None
+    detail: str | None
+
+
+def _resolve_cookies_file() -> str | None:
+    cookies_file = os.getenv("YTDLP_COOKIES_FILE")
+    if cookies_file:
+        path = Path(cookies_file)
+        if path.exists() and path.is_file():
+            return str(path)
+
+    cookies_b64 = os.getenv("YTDLP_COOKIES_B64")
+    if cookies_b64:
+        target = RUNTIME_DIR / "youtube_cookies.txt"
+        decoded = base64.b64decode(cookies_b64).decode("utf-8", errors="ignore")
+        target.write_text(decoded, encoding="utf-8")
+        return str(target)
+
+    return None
+
+
+def _build_ydl_base_options() -> dict[str, Any]:
+    options: dict[str, Any] = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "restrictfilenames": True,
+        "prefer_ffmpeg": True,
+        "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+    }
+    cookiefile = _resolve_cookies_file()
+    if cookiefile:
+        options["cookiefile"] = cookiefile
+    return options
+
+
+def _check_admin_token(admin_token: str | None) -> bool:
+    expected = os.getenv("ADMIN_TOKEN")
+    if not expected:
+        return False
+    if admin_token != expected:
+        raise HTTPException(status_code=401, detail="Invalid admin token")
+    return True
+
+
 def _find_output_file(ydl: yt_dlp.YoutubeDL, info: dict[str, Any]) -> Path:
     prepared = Path(ydl.prepare_filename(info))
     if prepared.exists():
@@ -84,9 +141,9 @@ def _video_format_for_quality(quality: str) -> str:
     return f"bestvideo*[height<={quality}]+bestaudio/best[height<={quality}]/best[height<={quality}]/best"
 
 
-def _sanitize_title(title: str) -> str:
-    cleaned = title.strip().replace("\n", " ").replace("\r", " ")
-    forbidden = ['\\', '/', ':', '*', '?', '"', '<', '>']
+def _sanitize_title(value: str) -> str:
+    cleaned = value.strip().replace("\n", " ").replace("\r", " ")
+    forbidden = ['\\', '/', ':', '*', '?', '"', '<', '>', '|']
     for char in forbidden:
         cleaned = cleaned.replace(char, "")
     return cleaned[:150] or "video"
@@ -95,20 +152,16 @@ def _sanitize_title(title: str) -> str:
 def _build_branded_filename(info: dict[str, Any], ext: str) -> str:
     raw_title = str(info.get("title") or "video")
     title = _sanitize_title(raw_title)
+    app_name = _sanitize_title(APP_NAME_SUFFIX)
+    brand = _sanitize_title(BRAND_SUFFIX)
     separator = " | " if os.name != "nt" else " - "
-    return f"{title}{separator}{APP_NAME_SUFFIX} - {BRAND_SUFFIX}.{ext}"
+    return f"{title}{separator}{app_name} - {brand}.{ext}"
 
 
 def download_media(url: str, audio_only: bool = False, quality: str | None = None) -> dict[str, Any]:
-    options: dict[str, Any] = {
-        "outtmpl": str(DOWNLOAD_DIR / "%(title).150B-%(id)s.%(ext)s"),
-        "noplaylist": True,
-        "restrictfilenames": True,
-        "quiet": True,
-        "no_warnings": True,
-        "prefer_ffmpeg": True,
-    }
-    selected_quality = ""
+    options: dict[str, Any] = _build_ydl_base_options()
+    options["outtmpl"] = str(DOWNLOAD_DIR / "%(title).150B-%(id)s.%(ext)s")
+
     if audio_only:
         selected_quality = quality if quality in AUDIO_QUALITIES else "192"
         options["format"] = "bestaudio/best"
@@ -146,28 +199,36 @@ def download_media(url: str, audio_only: bool = False, quality: str | None = Non
                 "duration": info.get("duration"),
             }
     except Exception as exc:
+        err = str(exc)
+        if "not a bot" in err.lower():
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "YouTube exige autenticacao. Configure YTDLP_COOKIES_FILE "
+                    "ou YTDLP_COOKIES_B64 nas variaveis de ambiente."
+                ),
+            ) from exc
         raise HTTPException(status_code=400, detail=f"Download failed: {exc}") from exc
 
 
 def youtube_search(query: str, limit: int = 10) -> YoutubeSearchResponse:
     safe_limit = max(1, min(limit, 20))
-    options: dict[str, Any] = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "extract_flat": False,
-    }
+    options: dict[str, Any] = _build_ydl_base_options()
+    options["skip_download"] = True
+    options["extract_flat"] = False
+
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
             data = ydl.extract_info(f"ytsearch{safe_limit}:{query}", download=False)
+
         entries = data.get("entries", []) if isinstance(data, dict) else []
         items: list[YoutubeSearchItem] = []
         for entry in entries:
             if not entry:
                 continue
             video_id = str(entry.get("id") or "")
-            url = entry.get("webpage_url") or (f"https://www.youtube.com/watch?v={video_id}" if video_id else "")
-            if not url:
+            webpage_url = entry.get("webpage_url") or (f"https://www.youtube.com/watch?v={video_id}" if video_id else "")
+            if not webpage_url:
                 continue
             items.append(
                 YoutubeSearchItem(
@@ -175,10 +236,11 @@ def youtube_search(query: str, limit: int = 10) -> YoutubeSearchResponse:
                     title=str(entry.get("title") or "Sem titulo"),
                     channel=entry.get("channel") or entry.get("uploader"),
                     duration=entry.get("duration"),
-                    webpage_url=url,
+                    webpage_url=webpage_url,
                     thumbnail=entry.get("thumbnail"),
                 )
             )
+
         return YoutubeSearchResponse(query=query, count=len(items), items=items)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Search failed: {exc}") from exc
@@ -192,6 +254,51 @@ def health() -> dict[str, str]:
 @app.get("/search/youtube", response_model=YoutubeSearchResponse)
 def search_youtube(q: str = Query(..., min_length=2), limit: int = Query(10, ge=1, le=20)):
     return youtube_search(query=q, limit=limit)
+
+
+@app.post("/admin/cookies/test", response_model=CookiesTestResponse)
+def admin_test_cookies(
+    test_url: str = Query("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+):
+    auth_protected = bool(os.getenv("ADMIN_TOKEN"))
+    _check_admin_token(x_admin_token)
+
+    options = _build_ydl_base_options()
+    options["skip_download"] = True
+    options["extract_flat"] = False
+    cookiefile = options.get("cookiefile")
+    cookiefile_exists = bool(cookiefile and Path(cookiefile).exists())
+    cookies_configured = bool(cookiefile)
+
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.extract_info(test_url, download=False)
+        return CookiesTestResponse(
+            status="ok",
+            auth_protected=auth_protected,
+            cookies_configured=cookies_configured,
+            cookiefile=str(cookiefile) if cookiefile else None,
+            cookiefile_exists=cookiefile_exists,
+            can_extract=True,
+            test_url=test_url,
+            extractor=info.get("extractor"),
+            title=info.get("title"),
+            detail=None,
+        )
+    except Exception as exc:
+        return CookiesTestResponse(
+            status="error",
+            auth_protected=auth_protected,
+            cookies_configured=cookies_configured,
+            cookiefile=str(cookiefile) if cookiefile else None,
+            cookiefile_exists=cookiefile_exists,
+            can_extract=False,
+            test_url=test_url,
+            extractor=None,
+            title=None,
+            detail=str(exc),
+        )
 
 
 @app.get("/")

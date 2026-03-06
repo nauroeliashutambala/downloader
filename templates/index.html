@@ -12,11 +12,26 @@
 <body>
   <main class="page">
     <section class="hero card reveal-1">
-      <p class="tag">Video Downloader</p>
-      <h1>Baixe videos com um link</h1>
-      <p class="subtitle">Cole a URL do video e a API faz o download para voce.</p>
-      <p class="meta">Criador: NauroVibes Downloader</p>
-      <p class="meta">Nome do ficheiro: NauroVibes Downloader</p>
+      <div class="hero-grid">
+        <div>
+          <p class="tag">NauroVibes Downloader</p>
+          <h1>Download de video e audio em nivel producao</h1>
+          <p class="subtitle">Cole um link ou pesquise no YouTube. Escolha formato, qualidade e baixe com nome assinado automaticamente.</p>
+          <div class="hero-actions">
+            <button type="button" class="hero-link-btn" data-tab-target="url">Baixar por URL</button>
+            <button type="button" class="hero-link-btn is-ghost" data-tab-target="search">Pesquisar YouTube</button>
+          </div>
+        </div>
+        <aside class="hero-panel">
+          <p class="hero-panel-title">Nauro-Vidown</p>
+          <p class="hero-panel-sub">Criador: NauroVibes Downloader</p>
+          <div class="hero-stats">
+            <div><span>Formatos</span><strong>Video + MP3</strong></div>
+            <div><span>Qualidade</span><strong>360p ate Best</strong></div>
+            <div><span>Assinatura</span><strong>-lubashow.com</strong></div>
+          </div>
+        </aside>
+      </div>
     </section>
 
     <section class="card reveal-2 tabs-card">
@@ -82,6 +97,7 @@
           <li><code>POST {{ api_base }}/download/video</code> - baixar video</li>
           <li><code>POST {{ api_base }}/download/audio</code> - baixar audio/musica</li>
           <li><code>GET {{ api_base }}/files/{filename}</code> - baixar ficheiro gerado</li>
+          <li><code>POST {{ api_base }}/admin/cookies/test</code> - testa configuracao de cookies (admin)</li>
         </ul>
 
         <h3>Body JSON</h3>
@@ -120,7 +136,7 @@
 
         <h3>Notas</h3>
         <ul>
-          <li>Os ficheiros sao assinados com <code>-| https://nauro-vidown.up.railway.app</code> no nome.</li>
+          <li>Os ficheiros sao assinados com <code>-lubashow.com</code> no nome.</li>
           <li>A disponibilidade depende dos sites suportados por <code>yt-dlp</code>.</li>
           <li>No Railway, armazenamento local e efemero (reinicios podem apagar ficheiros).</li>
         </ul>
@@ -131,3 +147,5 @@
   <script src="/static/app.js"></script>
 </body>
 </html>
+
+
