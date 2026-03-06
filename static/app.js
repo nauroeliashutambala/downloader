@@ -15,6 +15,8 @@ const rTitle = document.getElementById("r-title");
 const rExtractor = document.getElementById("r-extractor");
 const rDuration = document.getElementById("r-duration");
 const rFilename = document.getElementById("r-filename");
+const rThumb = document.getElementById("r-thumb");
+const resultCoverWrap = document.getElementById("result-cover-wrap");
 const fileLink = document.getElementById("file-link");
 const docsEl = document.getElementById("docs");
 const exampleLanguageInput = document.getElementById("example-language");
@@ -216,6 +218,13 @@ form.addEventListener("submit", async (event) => {
     rExtractor.textContent = data.extractor || "-";
     rDuration.textContent = formatDuration(data.duration);
     rFilename.textContent = data.filename;
+    if (data.thumbnail && rThumb && resultCoverWrap) {
+      rThumb.src = data.thumbnail;
+      resultCoverWrap.classList.remove("hidden");
+    } else if (rThumb && resultCoverWrap) {
+      rThumb.removeAttribute("src");
+      resultCoverWrap.classList.add("hidden");
+    }
     fileLink.href = `/files/${encodeURIComponent(data.filename)}`;
 
     resultEl.classList.remove("hidden");

@@ -106,6 +106,7 @@ curl -X POST "http://127.0.0.1:8000/admin/cookies/test" \
 - O `nixpacks.toml` instala `ffmpeg`.
 - A Railway injeta `PORT` automaticamente; o start command ja usa essa variavel.
 - Se quiser persistencia real dos arquivos, use storage externo (S3, R2 etc.) e salve la em vez de disco local.
+- Sem `ffmpeg`/`ffprobe`, a API ainda baixa, mas sem conversao para mp3 e sem merge avancado de streams.
 
 ### YouTube "Sign in to confirm you're not a bot"
 

@@ -241,6 +241,19 @@ button:disabled { opacity: 0.55; cursor: wait; transform: none; }
   color: var(--muted);
 }
 
+.result-cover {
+  margin: 0 0 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.result-cover img {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+}
 .result dl {
   margin: 0 0 16px;
   display: grid;
@@ -447,3 +460,4 @@ pre code {
   input, select { padding: 11px 12px; }
   .download-link { width: 100%; text-align: center; }
 }
+
