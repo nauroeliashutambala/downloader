@@ -19,24 +19,112 @@
       <p class="meta">Nome do ficheiro: NauroVibes Downloader</p>
     </section>
 
-    <section class="card reveal-2">
-      <form id="download-form" class="form">
-        <label for="url">Link do video</label>
-        <input id="url" name="url" type="url" placeholder="https://..." required>
-        <button id="submit-btn" type="submit">Baixar</button>
-      </form>
-      <p id="status" class="status" aria-live="polite"></p>
+    <section class="card reveal-2 tabs-card">
+      <div class="tabs" role="tablist" aria-label="Navegacao principal">
+        <button type="button" class="tab-btn is-active" data-tab-target="url" role="tab" aria-selected="true">URL</button>
+        <button type="button" class="tab-btn" data-tab-target="search" role="tab" aria-selected="false">Pesquisar</button>
+        <button type="button" class="tab-btn" data-tab-target="docs" role="tab" aria-selected="false">Documentacao</button>
+      </div>
     </section>
 
-    <section id="result" class="card result hidden reveal-3">
-      <h2>Resultado</h2>
-      <dl>
-        <div><dt>Titulo</dt><dd id="r-title">-</dd></div>
-        <div><dt>Extractor</dt><dd id="r-extractor">-</dd></div>
-        <div><dt>Duracao</dt><dd id="r-duration">-</dd></div>
-        <div><dt>Arquivo</dt><dd id="r-filename">-</dd></div>
-      </dl>
-      <a id="file-link" href="#" class="download-link" target="_blank" rel="noopener">Baixar arquivo</a>
+    <section id="tab-url" class="tab-panel is-active">
+      <section class="card reveal-2">
+        <form id="download-form" class="form">
+          <label for="url">Link do video</label>
+          <input id="url" name="url" type="url" placeholder="https://..." required>
+          <label for="media-type">Tipo</label>
+          <select id="media-type" name="media_type">
+            <option value="video">Video</option>
+            <option value="audio">Audio (musica)</option>
+          </select>
+          <label for="quality">Qualidade</label>
+          <select id="quality" name="quality"></select>
+          <button id="submit-btn" type="submit">Baixar</button>
+        </form>
+        <p id="status" class="status" aria-live="polite"></p>
+      </section>
+
+      <section id="result" class="card result hidden reveal-3">
+        <h2>Resultado</h2>
+        <dl>
+          <div><dt>Titulo</dt><dd id="r-title">-</dd></div>
+          <div><dt>Extractor</dt><dd id="r-extractor">-</dd></div>
+          <div><dt>Duracao</dt><dd id="r-duration">-</dd></div>
+          <div><dt>Arquivo</dt><dd id="r-filename">-</dd></div>
+        </dl>
+        <a id="file-link" href="#" class="download-link" target="_blank" rel="noopener">Baixar arquivo</a>
+      </section>
+    </section>
+
+    <section id="tab-search" class="tab-panel">
+      <section class="card reveal-2">
+        <h2>Pesquisa YouTube</h2>
+        <form id="search-form" class="form">
+          <label for="search-query">Pesquisar video</label>
+          <input id="search-query" name="search_query" type="text" placeholder="Nome da musica ou video..." minlength="2" required>
+          <button id="search-btn" type="submit">Pesquisar</button>
+        </form>
+        <p id="search-status" class="status" aria-live="polite"></p>
+        <div id="search-results" class="search-results hidden"></div>
+      </section>
+    </section>
+
+    <section id="tab-docs" class="tab-panel">
+      <section class="card reveal-3 docs" id="docs" data-api-base="{{ api_base }}">
+        <h2>Documentacao de Producao</h2>
+        <p class="subtitle">Base URL atual: <code>{{ api_base }}</code></p>
+
+        <h3>Endpoints</h3>
+        <ul>
+          <li><code>GET {{ api_base }}/health</code> - status da API</li>
+          <li><code>GET {{ api_base }}/search/youtube?q=termo&limit=10</code> - pesquisa videos no YouTube</li>
+          <li><code>POST {{ api_base }}/download</code> - alias para baixar video</li>
+          <li><code>POST {{ api_base }}/download/video</code> - baixar video</li>
+          <li><code>POST {{ api_base }}/download/audio</code> - baixar audio/musica</li>
+          <li><code>GET {{ api_base }}/files/{filename}</code> - baixar ficheiro gerado</li>
+        </ul>
+
+        <h3>Body JSON</h3>
+        <pre><code>{
+  "url": "https://...",
+  "quality": "best"
+}</code></pre>
+
+        <h3>Qualidades</h3>
+        <ul>
+          <li>Video: <code>best</code>, <code>1080</code>, <code>720</code>, <code>480</code>, <code>360</code></li>
+          <li>Audio (mp3): <code>320</code>, <code>192</code>, <code>128</code> kbps</li>
+        </ul>
+
+        <h3>Exemplos de Integracao</h3>
+        <div class="example-controls">
+          <div class="example-field">
+            <label for="example-language">Linguagem</label>
+            <select id="example-language" name="example_language">
+              <option value="curl">cURL</option>
+              <option value="python">Python</option>
+              <option value="javascript">JavaScript</option>
+            </select>
+          </div>
+          <div class="example-field">
+            <label for="example-kind">Tipo</label>
+            <select id="example-kind" name="example_kind">
+              <option value="video">Video</option>
+              <option value="audio">Audio</option>
+            </select>
+          </div>
+          <button id="copy-example-btn" type="button">Copiar exemplo</button>
+        </div>
+        <pre><code id="example-code"></code></pre>
+        <p id="copy-status" class="status" aria-live="polite"></p>
+
+        <h3>Notas</h3>
+        <ul>
+          <li>Os ficheiros sao assinados com <code>-| https://nauro-vidown.up.railway.app</code> no nome.</li>
+          <li>A disponibilidade depende dos sites suportados por <code>yt-dlp</code>.</li>
+          <li>No Railway, armazenamento local e efemero (reinicios podem apagar ficheiros).</li>
+        </ul>
+      </section>
     </section>
   </main>
 
